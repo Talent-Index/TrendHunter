@@ -1,60 +1,114 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-// Run tests: npx hardhat test
-// Run tests with gas report: REPORT_GAS=true npx hardhat test
-
-describe("YourContract", function () {
-  let contract;
+describe("TrendRegistry", function () {
+  let registry;
   let owner;
-  let addr1;
-  let addr2;
+  let contributor;
+  let analyst;
 
-  // Deploy a fresh instance before each test
+  const trend = {
+    trendId: "x-ai-interns-ke-001",
+    title: "Founder posts AI agent replacing interns",
+    category: "Founder Culture",
+    score: 86,
+    briefHash: "ipfs://bafy-ready-to-shoot-brief",
+  };
+
+  trend.trendHash = ethers.id(`${trend.title}|${trend.category}|${trend.score}`);
+
   beforeEach(async function () {
-    [owner, addr1, addr2] = await ethers.getSigners();
+    [owner, contributor, analyst] = await ethers.getSigners();
 
-    const Contract = await ethers.getContractFactory("YourContract");
-    contract = await Contract.deploy();
-    await contract.waitForDeployment();
+    const Registry = await ethers.getContractFactory("TrendRegistry");
+    registry = await Registry.deploy();
+    await registry.waitForDeployment();
   });
 
-  describe("Deployment", function () {
-    it("should set the deployer as the owner", async function () {
-      expect(await contract.owner()).to.equal(owner.address);
-    });
+  async function registerSampleTrend() {
+    return registry.connect(contributor).registerTrend(
+      trend.trendId,
+      trend.trendHash,
+      trend.title,
+      trend.category,
+      trend.score,
+      trend.briefHash
+    );
+  }
 
-    it("should emit a Deployed event with the correct owner and timestamp", async function () {
-      const Contract = await ethers.getContractFactory("YourContract");
-      const deployTx = Contract.deploy();
+  it("registers a trend discovery with its first-seen timestamp and contributor", async function () {
+    await expect(registerSampleTrend())
+      .to.emit(registry, "TrendRegistered")
+      .withArgs(
+        trend.trendId,
+        trend.trendHash,
+        trend.title,
+        trend.category,
+        trend.score,
+        trend.briefHash,
+        contributor.address
+      );
 
-      await expect(deployTx)
-        .to.emit(await deployTx, "Deployed")
-        .withArgs(owner.address, await ethers.provider.getBlock("latest").then(b => b.timestamp));
-    });
+    const stored = await registry.getTrend(trend.trendId);
+    expect(stored.trendId).to.equal(trend.trendId);
+    expect(stored.trendHash).to.equal(trend.trendHash);
+    expect(stored.title).to.equal(trend.title);
+    expect(stored.category).to.equal(trend.category);
+    expect(stored.score).to.equal(trend.score);
+    expect(stored.briefHash).to.equal(trend.briefHash);
+    expect(stored.verified).to.equal(false);
+    expect(stored.contributor).to.equal(contributor.address);
+    expect(stored.firstSeen).to.be.greaterThan(0);
+    expect(await registry.trendCount()).to.equal(1);
+    expect(await registry.contributorReputation(contributor.address)).to.equal(1);
+    expect(await registry.getTrendIds()).to.deep.equal([trend.trendId]);
   });
 
-  // Add your own tests below.
-  //
-  // For an ERC-20 token (Week 2), your tests should cover:
-  //   - Initial supply is minted to the correct address
-  //   - Transfer moves the correct amount between accounts
-  //   - Transfer fails when sender has insufficient balance
-  //   - Approve and transferFrom work correctly
-  //   - Minting increases total supply (if your token has a mint function)
-  //
-  // Example structure:
-  //
-  // describe("Token transfers", function () {
-  //   it("should transfer tokens between accounts", async function () {
-  //     await contract.transfer(addr1.address, 100);
-  //     expect(await contract.balanceOf(addr1.address)).to.equal(100);
-  //   });
-  //
-  //   it("should fail if sender does not have enough tokens", async function () {
-  //     await expect(
-  //       contract.connect(addr1).transfer(addr2.address, 1)
-  //     ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
-  //   });
-  // });
+  it("prevents duplicate trend reports", async function () {
+    await registerSampleTrend();
+
+    await expect(registerSampleTrend())
+      .to.be.revertedWithCustomError(registry, "TrendAlreadyRegistered")
+      .withArgs(trend.trendId);
+  });
+
+  it("updates score as engagement velocity changes", async function () {
+    await registerSampleTrend();
+
+    await expect(registry.connect(analyst).updateTrendScore(trend.trendId, 94))
+      .to.emit(registry, "TrendScoreUpdated")
+      .withArgs(trend.trendId, trend.score, 94);
+
+    const stored = await registry.getTrend(trend.trendId);
+    expect(stored.score).to.equal(94);
+  });
+
+  it("attaches a new content brief hash and rewards the contributor", async function () {
+    await registerSampleTrend();
+
+    await expect(
+      registry.connect(analyst).attachContentBrief(trend.trendId, "ipfs://bafy-updated-brief")
+    )
+      .to.emit(registry, "ContentBriefAttached")
+      .withArgs(trend.trendId, "ipfs://bafy-updated-brief");
+
+    const stored = await registry.getTrend(trend.trendId);
+    expect(stored.briefHash).to.equal("ipfs://bafy-updated-brief");
+    expect(await registry.contributorReputation(analyst.address)).to.equal(1);
+  });
+
+  it("lets only the owner verify trends", async function () {
+    await registerSampleTrend();
+
+    await expect(registry.connect(analyst).verifyTrend(trend.trendId))
+      .to.be.revertedWithCustomError(registry, "NotOwner");
+
+    await expect(registry.verifyTrend(trend.trendId))
+      .to.emit(registry, "TrendVerified")
+      .withArgs(trend.trendId, owner.address);
+
+    const stored = await registry.getTrend(trend.trendId);
+    expect(stored.verified).to.equal(true);
+    expect(await registry.contributorReputation(contributor.address)).to.equal(4);
+  });
 });

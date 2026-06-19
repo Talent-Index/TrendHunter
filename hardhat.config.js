@@ -3,10 +3,11 @@ require("dotenv").config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const SNOWTRACE_API_KEY = process.env.SNOWTRACE_API_KEY || "";
+const isValidPrivateKey = /^0x[0-9a-fA-F]{64}$/.test(PRIVATE_KEY || "");
 
-if (!PRIVATE_KEY) {
+if (!isValidPrivateKey) {
   console.warn(
-    "Warning: PRIVATE_KEY not set in .env — deployment and testing against Fuji will not work."
+    "Warning: PRIVATE_KEY is not a valid 32-byte hex key — Fuji deployment will not work."
   );
 }
 
@@ -28,7 +29,7 @@ module.exports = {
     fuji: {
       url: "https://api.avax-test.network/ext/bc/C/rpc",
       chainId: 43113,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      accounts: isValidPrivateKey ? [PRIVATE_KEY] : [],
     },
   },
   etherscan: {

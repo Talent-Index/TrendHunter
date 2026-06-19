@@ -1,7 +1,7 @@
 {
-  "name": "minihack-cohort1",
+  "name": "trend-hunter",
   "version": "1.0.0",
-  "description": "Mini Hack Cohort 1 — Payments on Avalanche starter template",
+  "description": "AI-powered trend-to-content engine with an Avalanche Fuji trend registry",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",

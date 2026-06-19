@@ -15,13 +15,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Replace "YourContract" with the name of your compiled contract
-  // Example: const Contract = await ethers.getContractFactory("MyToken");
-  const Contract = await ethers.getContractFactory("YourContract");
+  const Contract = await ethers.getContractFactory("TrendRegistry");
 
   console.log("Deploying...");
 
-  // Update constructor arguments to match your contract
   const contract = await Contract.deploy();
   await contract.waitForDeployment();
 
