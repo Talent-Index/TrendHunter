@@ -1,9 +1,10 @@
 // --- Global State ---
     const FUJI_CHAIN_ID = 43113;
     const contractAbi = [
-      "function registerTrend(string trendId, bytes32 trendHash, string title, string category, uint256 score, string briefHash) external",
+      "function registerTrend(string title, string category, uint256 score, string contentHash) external returns (uint256)",
+      "function getTrend(uint256 trendId) external view returns (tuple(uint256 id, string title, string category, uint256 score, uint256 firstSeen, string contentHash, address creator, bool verified))",
       "function contributorReputation(address) public view returns (uint256)",
-      "function getTrend(string trendId) external view returns (tuple(string trendId, bytes32 trendHash, string title, string category, uint256 firstSeen, uint256 score, string briefHash, bool verified, address contributor))"
+      "function trendCount() public view returns (uint256)"
     ];
 
     let rawProvider = null;
